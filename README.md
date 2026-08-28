@@ -6,7 +6,7 @@
 
 A powerful, zero-config Artisan command to detect schema drift between your live database and your Laravel migration files. 
 
-Ever wonder if someone manually tweaked a database column directly in production without writing a migration? Or if a legacy table is sitting in your database completely untracked? This package catches those discrepancies instantly.
+Ever wonder if someone manually tweaked a database column directly in production without writing a migration? Or if a legacy table is sitting in your database completely untracked? This package catches those discrepancies instantly and can even generate the fix migrations for you automatically.
 
 ## How It Works
 
@@ -14,10 +14,12 @@ Behind the scenes, the package uses a clever "shadow database" approach:
 1. It takes a snapshot of your live database schema.
 2. It spins up a temporary in-memory SQLite database (or connects to your configured shadow database) and runs all your migration files.
 3. It compares the two schemas and outputs a terminal table highlighting missing tables, untracked columns, nullability mismatches, type drift, default value drift, and index discrepancies.
+4. **Instant Fix**: Generate a Laravel migration with a single flag (`--fix`) to bring your migrations in sync.
 
 ## Features
 
 - **Zero-Config Drift Detection**: Compare live databases directly against migration files.
+- **Automatic Migration Generator (`--fix`)**: Automatically generate a timestamped Laravel migration to synchronize detected drift without writing boilerplate code manually.
 - **Cross-Database Type Normalization Engine**: SQLite shadow databases use loose type affinity. Our built-in `TypeNormalizer` accurately maps dialect-specific column types across **MySQL**, **PostgreSQL**, **SQLite**, and **SQL Server** to canonical types (`integer`, `bigint`, `boolean`, `decimal`, `string`, `datetime`, `json`, `binary`), eliminating false-positive type mismatches (e.g. MySQL `TINYINT(1)` vs SQLite boolean/integer).
 - **Smart Default Value Normalization**: Strips dialect-specific default wrappers (such as Postgres casts `'val'::character varying`, SQL Server `((0))`, MySQL bit literals `b'1'`, and boolean string variants) to ensure accurate default comparisons.
 - **Custom Shadow Connections**: Have migrations containing raw SQL statements, full-text indexes, GIS/spatial types, or stored procedures that fail on SQLite? Pass a real shadow connection (e.g. `--shadow-connection=mysql_testing`) to run migrations against a dedicated test database.
@@ -47,11 +49,31 @@ php artisan vendor:publish --tag=schema-drift-config
 
 ## Usage
 
-### Basic Usage (In-Memory SQLite Shadow DB)
+### Basic Drift Check
 Run the drift check against your default database connection:
 
 ```bash
 php artisan schema:drift
+```
+
+### Auto-Fix with Migration Generation 🚀
+Automatically generate a Laravel migration to fix detected drift:
+
+```bash
+php artisan schema:drift --fix
+```
+
+To include destructive drop operations (e.g. dropping columns or tables in migration that do not exist in the live database):
+
+```bash
+php artisan schema:drift --fix --destructive
+```
+
+### Standalone Migration Generator Command
+You can also invoke the migration generator directly:
+
+```bash
+php artisan schema:drift:generate-migration --name=sync_legacy_schema
 ```
 
 ### Custom Live Connection or Migration Path

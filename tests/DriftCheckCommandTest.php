@@ -3,6 +3,7 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use EmirKefi\SchemaDrift\Commands\DriftCheckCommand;
+use EmirKefi\SchemaDrift\Commands\GenerateMigrationCommand;
 
 $passed = 0;
 $failed = 0;
@@ -18,20 +19,28 @@ function test(string $description, bool $condition, &$passed, &$failed): void
     }
 }
 
-echo "Running DriftCheckCommand Definition & Options Tests...\n";
+echo "Running DriftCheckCommand & GenerateMigrationCommand Definition Tests...\n";
 
-$command = new DriftCheckCommand();
-$definition = $command->getDefinition();
+// 1. DriftCheckCommand
+$driftCommand = new DriftCheckCommand();
+$driftDef = $driftCommand->getDefinition();
 
-// 1. Verify Command Options exist
-test('Has --connection option', $definition->hasOption('connection'), $passed, $failed);
-test('Has --shadow-connection option', $definition->hasOption('shadow-connection'), $passed, $failed);
-test('Has --path option', $definition->hasOption('path'), $passed, $failed);
-test('Has --fresh-shadow option', $definition->hasOption('fresh-shadow'), $passed, $failed);
+test('DriftCheckCommand has --connection', $driftDef->hasOption('connection'), $passed, $failed);
+test('DriftCheckCommand has --shadow-connection', $driftDef->hasOption('shadow-connection'), $passed, $failed);
+test('DriftCheckCommand has --path', $driftDef->hasOption('path'), $passed, $failed);
+test('DriftCheckCommand has --fresh-shadow', $driftDef->hasOption('fresh-shadow'), $passed, $failed);
+test('DriftCheckCommand has --fix', $driftDef->hasOption('fix'), $passed, $failed);
+test('DriftCheckCommand has --destructive', $driftDef->hasOption('destructive'), $passed, $failed);
 
-// 2. Verify Command Name & Description
-test('Command name is schema:drift', $command->getName() === 'schema:drift', $passed, $failed);
-test('Command has description', !empty($command->getDescription()), $passed, $failed);
+// 2. GenerateMigrationCommand
+$genCommand = new GenerateMigrationCommand();
+$genDef = $genCommand->getDefinition();
+
+test('GenerateMigrationCommand name is schema:drift:generate-migration', $genCommand->getName() === 'schema:drift:generate-migration', $passed, $failed);
+test('GenerateMigrationCommand has --connection', $genDef->hasOption('connection'), $passed, $failed);
+test('GenerateMigrationCommand has --shadow-connection', $genDef->hasOption('shadow-connection'), $passed, $failed);
+test('GenerateMigrationCommand has --output', $genDef->hasOption('output'), $passed, $failed);
+test('GenerateMigrationCommand has --destructive', $genDef->hasOption('destructive'), $passed, $failed);
 
 echo "\nResults: {$passed} passed, {$failed} failed.\n";
 if ($failed > 0) {

@@ -4,6 +4,7 @@ namespace EmirKefi\SchemaDrift;
 
 use Illuminate\Support\ServiceProvider;
 use EmirKefi\SchemaDrift\Commands\DriftCheckCommand;
+use EmirKefi\SchemaDrift\Commands\GenerateMigrationCommand;
 
 class SchemaDriftServiceProvider extends ServiceProvider
 {
@@ -21,6 +22,7 @@ class SchemaDriftServiceProvider extends ServiceProvider
 
             $this->commands([
                 DriftCheckCommand::class,
+                GenerateMigrationCommand::class,
             ]);
         }
     }

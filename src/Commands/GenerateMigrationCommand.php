@@ -10,23 +10,27 @@ use EmirKefi\SchemaDrift\Extractors\SchemaExtractor;
 use EmirKefi\SchemaDrift\Services\DiffEngine;
 use EmirKefi\SchemaDrift\Services\MigrationGenerator;
 
-class DriftCheckCommand extends Command
+class GenerateMigrationCommand extends Command
 {
-    protected $signature = 'schema:drift 
+    protected $signature = 'schema:drift:generate-migration 
                             {--connection= : The database connection to check against migrations}
                             {--shadow-connection= : Custom shadow database connection for running migrations}
-                            {--path=database/migrations : Path to migration files}
-                            {--fresh-shadow : Run migrate:fresh on the shadow connection before extracting schema}
-                            {--fix : Automatically generate a migration to fix detected schema drift}
-                            {--destructive : Include destructive operations (e.g. drop missing columns/tables) in the fix migration}';
+                            {--path=database/migrations : Path to existing migration files}
+                            {--output= : Directory to save the generated migration file}
+                            {--name=fix_schema_drift : Name of the generated migration}
+                            {--destructive : Include destructive drop operations in the migration}
+                            {--fresh-shadow : Run migrate:fresh on the shadow connection}';
 
-    protected $description = 'Detect schema drift between live database tables and migration files';
+    protected $description = 'Generate a timestamped Laravel migration to fix detected schema drift';
 
     public function handle(DiffEngine $diffEngine, MigrationGenerator $migrationGenerator): int
     {
         $targetConnection = $this->option('connection') ?? config('database.default');
         $shadowConnection = $this->option('shadow-connection') ?? config('schema-drift.shadow_connection');
         $migrationPath = $this->option('path');
+        $outputPath = $this->option('output') ?? (function_exists('database_path') ? database_path('migrations') : getcwd() . '/database/migrations');
+        $destructive = (bool) $this->option('destructive');
+        $migrationName = (string) $this->option('name');
 
         if ($shadowConnection !== null && $shadowConnection === $targetConnection) {
             $this->error("⚠️  Safety Error: Target connection [{$targetConnection}] and shadow connection [{$shadowConnection}] cannot be the same.");
@@ -34,12 +38,11 @@ class DriftCheckCommand extends Command
         }
 
         $this->info(" Inspecting live schema on [{$targetConnection}]...");
-        
         $liveExtractor = new SchemaExtractor($targetConnection);
         $liveSchema = $liveExtractor->extract();
 
         if ($shadowConnection) {
-            $this->info(" Running migrations on custom shadow database [{$shadowConnection}]...");
+            $this->info(" Running migrations on shadow database [{$shadowConnection}]...");
         } else {
             $this->info(" Simulating migrations in temporary in-memory SQLite shadow database...");
         }
@@ -51,35 +54,19 @@ class DriftCheckCommand extends Command
 
         if (empty($diffs)) {
             $this->newLine();
-            $this->info('✅ Schema is in perfect sync with your migrations! No drift detected.');
+            $this->info('✅ Schema is in perfect sync! No migration needed.');
             return self::SUCCESS;
         }
 
+        $this->info(' Generating fix migration...');
+        $content = $migrationGenerator->generate($diffs, $liveSchema, $expectedSchema, $destructive);
+        $filePath = $migrationGenerator->write($content, $outputPath, $migrationName);
+
         $this->newLine();
-        $this->error('⚠️  Schema drift detected:');
-        
-        $rows = array_map(fn($diff) => $diff->toArray(), $diffs);
+        $this->info("✨ Migration generated successfully:");
+        $this->line("   <fg=cyan>{$filePath}</>");
 
-        $this->table(
-            ['Table', 'Attribute', 'Expected (Migrations)', 'Actual (Database)', 'Issue Type'],
-            $rows
-        );
-
-        if ($this->option('fix')) {
-            $this->newLine();
-            $this->info('🛠️  Generating fix migration...');
-            $destructive = (bool) $this->option('destructive');
-            $content = $migrationGenerator->generate($diffs, $liveSchema, $expectedSchema, $destructive);
-            $filePath = $migrationGenerator->write($content, $migrationPath);
-
-            $this->info("✨ Fix migration generated successfully:");
-            $this->line("   <fg=cyan>{$filePath}</>");
-        } else {
-            $this->newLine();
-            $this->comment('💡 Tip: Run with --fix or use `php artisan schema:drift:generate-migration` to automatically generate a migration fixing this drift.');
-        }
-
-        return self::FAILURE;
+        return self::SUCCESS;
     }
 
     protected function extractExpectedSchema(string $migrationPath, ?string $customShadowConnection = null): array
@@ -88,7 +75,6 @@ class DriftCheckCommand extends Command
         $shadowConnection = $isCustomShadow ? $customShadowConnection : 'schema_drift_shadow';
 
         if (!$isCustomShadow) {
-            // Setup temporary in-memory SQLite shadow connection
             Config::set("database.connections.{$shadowConnection}", [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
@@ -100,7 +86,6 @@ class DriftCheckCommand extends Command
         $shouldFresh = $this->option('fresh-shadow') || config('schema-drift.fresh_shadow', false);
         $migrateCommand = ($isCustomShadow && $shouldFresh) ? 'migrate:fresh' : 'migrate';
 
-        // Run migrations on the shadow database
         Artisan::call($migrateCommand, [
             '--database' => $shadowConnection,
             '--path' => $migrationPath,
