@@ -17,13 +17,13 @@ Behind the scenes, the package uses a clever "shadow database" approach:
 
 ## Features
 
-- 🚀 **Zero-Config Drift Detection**: Compare live databases directly against migration files.
-- 🔄 **Cross-Database Type Normalization Engine**: SQLite shadow databases use loose type affinity. Our built-in `TypeNormalizer` accurately maps dialect-specific column types across **MySQL**, **PostgreSQL**, **SQLite**, and **SQL Server** to canonical types (`integer`, `bigint`, `boolean`, `decimal`, `string`, `datetime`, `json`, `binary`), eliminating false-positive type mismatches (e.g. MySQL `TINYINT(1)` vs SQLite boolean/integer).
-- 🏷️ **Smart Default Value Normalization**: Strips dialect-specific default wrappers (such as Postgres casts `'val'::character varying`, SQL Server `((0))`, MySQL bit literals `b'1'`, and boolean string variants) to ensure accurate default comparisons.
-- 🗄️ **Custom Shadow Connections**: Have migrations containing raw SQL statements, full-text indexes, GIS/spatial types, or stored procedures that fail on SQLite? Pass a real shadow connection (e.g. `--shadow-connection=mysql_testing`) to run migrations against a dedicated test database.
-- 🛡️ **Built-in Safety Guardrails**: Prevents accidentally running shadow migrations against your target live/production connection.
-- 🎯 **Fine-Grained Strictness Checks**: Enable or disable checks for indexes, foreign keys, column types, and defaults.
-- 🔍 **Ignore Patterns**: Exclude vendor, framework, or legacy tables with wildcard support (e.g. `pma__*`).
+- **Zero-Config Drift Detection**: Compare live databases directly against migration files.
+- **Cross-Database Type Normalization Engine**: SQLite shadow databases use loose type affinity. Our built-in `TypeNormalizer` accurately maps dialect-specific column types across **MySQL**, **PostgreSQL**, **SQLite**, and **SQL Server** to canonical types (`integer`, `bigint`, `boolean`, `decimal`, `string`, `datetime`, `json`, `binary`), eliminating false-positive type mismatches (e.g. MySQL `TINYINT(1)` vs SQLite boolean/integer).
+- **Smart Default Value Normalization**: Strips dialect-specific default wrappers (such as Postgres casts `'val'::character varying`, SQL Server `((0))`, MySQL bit literals `b'1'`, and boolean string variants) to ensure accurate default comparisons.
+- **Custom Shadow Connections**: Have migrations containing raw SQL statements, full-text indexes, GIS/spatial types, or stored procedures that fail on SQLite? Pass a real shadow connection (e.g. `--shadow-connection=mysql_testing`) to run migrations against a dedicated test database.
+- **Built-in Safety Guardrails**: Prevents accidentally running shadow migrations against your target live/production connection.
+- **Fine-Grained Strictness Checks**: Enable or disable checks for indexes, foreign keys, column types, and defaults.
+- **Ignore Patterns**: Exclude vendor, framework, or legacy tables with wildcard support (e.g. `pma__*`).
 
 ## Requirements
 
