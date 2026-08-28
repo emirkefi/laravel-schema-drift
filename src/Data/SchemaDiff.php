@@ -1,6 +1,6 @@
 <?php
 
-namespace YourVendor\SchemaDrift\Data;
+namespace EmirKefi\SchemaDrift\Data;
 
 class SchemaDiff
 {

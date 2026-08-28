@@ -1,6 +1,6 @@
 <?php
 
-namespace YourVendor\SchemaDrift\Extractors;
+namespace EmirKefi\SchemaDrift\Extractors;
 
 use Illuminate\Support\Facades\Schema;
 

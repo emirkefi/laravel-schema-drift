@@ -1,8 +1,8 @@
 <?php
 
-namespace YourVendor\SchemaDrift\Services;
+namespace EmirKefi\SchemaDrift\Services;
 
-use YourVendor\SchemaDrift\Data\SchemaDiff;
+use EmirKefi\SchemaDrift\Data\SchemaDiff;
 
 class DiffEngine
 {

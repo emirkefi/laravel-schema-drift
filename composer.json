@@ -1,0 +1,33 @@
+{
+    "name": "emirkefi/laravel-schema-drift",
+    "description": "Zero-config database vs. migration drift detector for Laravel.",
+    "keywords": ["laravel", "schema", "drift", "migrations", "database"],
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Emir Kefi",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "illuminate/support": "^11.0|^12.0",
+        "illuminate/console": "^11.0|^12.0",
+        "illuminate/database": "^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "EmirKefi\\SchemaDrift\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "EmirKefi\\SchemaDrift\\SchemaDriftServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true
+}

@@ -1,13 +1,13 @@
 <?php
 
-namespace YourVendor\SchemaDrift\Commands;
+namespace EmirKefi\SchemaDrift\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
-use YourVendor\SchemaDrift\Extractors\SchemaExtractor;
-use YourVendor\SchemaDrift\Services\DiffEngine;
+use EmirKefi\SchemaDrift\Extractors\SchemaExtractor;
+use EmirKefi\SchemaDrift\Services\DiffEngine;
 
 class DriftCheckCommand extends Command
 {
