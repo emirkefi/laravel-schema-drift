@@ -22,15 +22,15 @@ class DriftCheckCommand extends Command
         $targetConnection = $this->option('connection') ?? config('database.default');
         $migrationPath = $this->option('path');
 
-        $this->info("🔍 Inspecting live schema on [{$targetConnection}]...");
+        $this->info(" Inspecting live schema on [{$targetConnection}]...");
         
         $liveExtractor = new SchemaExtractor($targetConnection);
         $liveSchema = $liveExtractor->extract();
 
-        $this->info("⚡ Simulating migrations in shadow database...");
+        $this->info(" Simulating migrations in shadow database...");
         $expectedSchema = $this->extractExpectedSchema($migrationPath);
 
-        $this->info("⚖️  Comparing schema structures...");
+        $this->info(" Comparing schema structures...");
         $diffs = $diffEngine->compare($liveSchema, $expectedSchema);
 
         if (empty($diffs)) {

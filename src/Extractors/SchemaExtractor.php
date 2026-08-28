@@ -3,6 +3,7 @@
 namespace EmirKefi\SchemaDrift\Extractors;
 
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
 class SchemaExtractor
 {
@@ -11,29 +12,38 @@ class SchemaExtractor
     ) {}
 
     public function extract(): array
-    {
-        $schema = Schema::connection($this->connection);
-        $ignoreTables = config('schema-drift.ignore_tables', []);
+{
+    $schema = Schema::connection($this->connection);
+    $ignorePatterns = config('schema-drift.ignore_tables', []);
+    
+    $tables = $schema->getTables();
+    $snapshot = [];
+
+    foreach ($tables as $table) {
+        $tableName = $table['name'] ?? $table;
         
-        $tables = $schema->getTables();
-        $snapshot = [];
-
-        foreach ($tables as $table) {
-            $tableName = $table['name'] ?? $table;
-            
-            if (in_array($tableName, $ignoreTables, true)) {
-                continue;
+        // Check if the table matches any ignore pattern (exact or wildcard)
+        $shouldIgnore = false;
+        foreach ($ignorePatterns as $pattern) {
+            if (Str::is($pattern, $tableName)) {
+                $shouldIgnore = true;
+                break;
             }
-
-            $snapshot[$tableName] = [
-                'columns' => $this->normalizeColumns($schema->getColumns($tableName)),
-                'indexes' => $this->normalizeIndexes($schema->getIndexes($tableName)),
-                'foreign_keys' => $this->normalizeForeignKeys($schema->getForeignKeys($tableName)),
-            ];
         }
 
-        return $snapshot;
+        if ($shouldIgnore) {
+            continue;
+        }
+
+        $snapshot[$tableName] = [
+            'columns' => $this->normalizeColumns($schema->getColumns($tableName)),
+            'indexes' => $this->normalizeIndexes($schema->getIndexes($tableName)),
+            'foreign_keys' => $this->normalizeForeignKeys($schema->getForeignKeys($tableName)),
+        ];
     }
+
+    return $snapshot;
+}
 
     protected function normalizeColumns(array $columns): array
     {
