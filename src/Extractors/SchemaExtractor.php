@@ -2,58 +2,62 @@
 
 namespace EmirKefi\SchemaDrift\Extractors;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use EmirKefi\SchemaDrift\Services\TypeNormalizer;
 
 class SchemaExtractor
 {
+    protected TypeNormalizer $typeNormalizer;
+
     public function __construct(
-        protected string $connection = 'default'
-    ) {}
-
-    public function extract(): array
-{
-    $schema = Schema::connection($this->connection);
-    $ignorePatterns = config('schema-drift.ignore_tables', []);
-    
-    $tables = $schema->getTables();
-    $snapshot = [];
-
-    foreach ($tables as $table) {
-        $tableName = $table['name'] ?? $table;
-        
-        // Check if the table matches any ignore pattern (exact or wildcard)
-        $shouldIgnore = false;
-        foreach ($ignorePatterns as $pattern) {
-            if (Str::is($pattern, $tableName)) {
-                $shouldIgnore = true;
-                break;
-            }
-        }
-
-        if ($shouldIgnore) {
-            continue;
-        }
-
-        $snapshot[$tableName] = [
-            'columns' => $this->normalizeColumns($schema->getColumns($tableName)),
-            'indexes' => $this->normalizeIndexes($schema->getIndexes($tableName)),
-            'foreign_keys' => $this->normalizeForeignKeys($schema->getForeignKeys($tableName)),
-        ];
+        protected string $connection = 'default',
+        ?TypeNormalizer $typeNormalizer = null
+    ) {
+        $this->typeNormalizer = $typeNormalizer ?? new TypeNormalizer();
     }
 
-    return $snapshot;
-}
+    public function extract(): array
+    {
+        $schema = Schema::connection($this->connection);
+        $driver = DB::connection($this->connection)->getDriverName();
+        $ignorePatterns = config('schema-drift.ignore_tables', []);
+        
+        $tables = $schema->getTables();
+        $snapshot = [];
 
-    protected function normalizeColumns(array $columns): array
+        foreach ($tables as $table) {
+            $tableName = $table['name'] ?? $table;
+            
+            // Check if the table matches any ignore pattern (exact or wildcard)
+            $shouldIgnore = false;
+            foreach ($ignorePatterns as $pattern) {
+                if (Str::is($pattern, $tableName)) {
+                    $shouldIgnore = true;
+                    break;
+                }
+            }
+
+            if ($shouldIgnore) {
+                continue;
+            }
+
+            $snapshot[$tableName] = [
+                'columns' => $this->normalizeColumns($schema->getColumns($tableName), $driver),
+                'indexes' => $this->normalizeIndexes($schema->getIndexes($tableName)),
+                'foreign_keys' => $this->normalizeForeignKeys($schema->getForeignKeys($tableName)),
+            ];
+        }
+
+        return $snapshot;
+    }
+
+    protected function normalizeColumns(array $columns, string $driver): array
     {
         $normalized = [];
         foreach ($columns as $column) {
-            $normalized[$column['name']] = [
-                'type' => strtolower($column['type_name'] ?? $column['type'] ?? 'unknown'),
-                'nullable' => (bool) ($column['nullable'] ?? false),
-                'default' => $column['default'] ?? null,
-            ];
+            $normalized[$column['name']] = $this->typeNormalizer->normalizeColumn($column, $driver);
         }
         return $normalized;
     }

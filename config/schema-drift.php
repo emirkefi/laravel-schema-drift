@@ -56,4 +56,5 @@ return [
     'check_indexes' => true,
     'check_foreign_keys' => true,
     'check_types' => true,
+    'check_defaults' => true,
 ];

@@ -21,15 +21,20 @@ class DiffEngine
             }
 
             // 2. Check Columns
-            $diffs = array_merge($diffs, $this->compareColumns($table, $liveSchema[$table]['columns'], $expectedData['columns']));
+            $diffs = array_merge($diffs, $this->compareColumns($table, $liveSchema[$table]['columns'] ?? [], $expectedData['columns'] ?? []));
 
             // 3. Check Indexes
-            if (config('schema-drift.check_indexes', true)) {
-                $diffs = array_merge($diffs, $this->compareIndexes($table, $liveSchema[$table]['indexes'], $expectedData['indexes']));
+            if ($this->getConfig('schema-drift.check_indexes', true)) {
+                $diffs = array_merge($diffs, $this->compareIndexes($table, $liveSchema[$table]['indexes'] ?? [], $expectedData['indexes'] ?? []));
+            }
+
+            // 4. Check Foreign Keys
+            if ($this->getConfig('schema-drift.check_foreign_keys', true)) {
+                $diffs = array_merge($diffs, $this->compareForeignKeys($table, $liveSchema[$table]['foreign_keys'] ?? [], $expectedData['foreign_keys'] ?? []));
             }
         }
 
-        // 4. Check for Untracked Tables in Live DB
+        // 5. Check for Untracked Tables in Live DB
         foreach ($liveSchema as $table => $data) {
             if (!isset($expectedSchema[$table])) {
                 $diffs[] = new SchemaDiff($table, '-', 'Missing in Migrations', 'Present in DB', 'UNTRACKED_TABLE');
@@ -42,6 +47,8 @@ class DiffEngine
     protected function compareColumns(string $table, array $liveCols, array $expectedCols): array
     {
         $diffs = [];
+        $checkTypes = $this->getConfig('schema-drift.check_types', true);
+        $checkDefaults = $this->getConfig('schema-drift.check_defaults', true);
 
         foreach ($expectedCols as $col => $expected) {
             if (!isset($liveCols[$col])) {
@@ -51,10 +58,25 @@ class DiffEngine
 
             $live = $liveCols[$col];
 
-            if ($expected['nullable'] !== $live['nullable']) {
-                $expStr = $expected['nullable'] ? 'nullable' : 'not null';
-                $actStr = $live['nullable'] ? 'nullable' : 'not null';
+            // Check Nullability
+            if (($expected['nullable'] ?? false) !== ($live['nullable'] ?? false)) {
+                $expStr = ($expected['nullable'] ?? false) ? 'nullable' : 'not null';
+                $actStr = ($live['nullable'] ?? false) ? 'nullable' : 'not null';
                 $diffs[] = new SchemaDiff($table, "col: {$col} (nullability)", $expStr, $actStr, 'NULLABILITY_MISMATCH');
+            }
+
+            // Check Column Type
+            if ($checkTypes && isset($expected['type'], $live['type']) && $expected['type'] !== $live['type']) {
+                $diffs[] = new SchemaDiff($table, "col: {$col} (type)", (string) $expected['type'], (string) $live['type'], 'TYPE_MISMATCH');
+            }
+
+            // Check Column Default
+            if ($checkDefaults && array_key_exists('default', $expected) && array_key_exists('default', $live)) {
+                if ($expected['default'] !== $live['default']) {
+                    $expDef = $expected['default'] === null ? 'NULL' : (string) $expected['default'];
+                    $actDef = $live['default'] === null ? 'NULL' : (string) $live['default'];
+                    $diffs[] = new SchemaDiff($table, "col: {$col} (default)", $expDef, $actDef, 'DEFAULT_MISMATCH');
+                }
             }
         }
 
@@ -78,5 +100,27 @@ class DiffEngine
         }
 
         return $diffs;
+    }
+
+    protected function compareForeignKeys(string $table, array $liveFks, array $expectedFks): array
+    {
+        $diffs = [];
+
+        foreach ($expectedFks as $fk => $expected) {
+            if (!isset($liveFks[$fk])) {
+                $diffs[] = new SchemaDiff($table, "fk: {$fk}", 'Present', 'Missing', 'MISSING_FOREIGN_KEY');
+            }
+        }
+
+        return $diffs;
+    }
+
+    protected function getConfig(string $key, mixed $default = null): mixed
+    {
+        if (function_exists('config')) {
+            return config($key, $default);
+        }
+
+        return $default;
     }
 }
