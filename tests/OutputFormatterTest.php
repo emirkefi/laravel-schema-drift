@@ -22,29 +22,29 @@ function test(string $description, bool $condition, &$passed, &$failed): void
 
 echo "Running OutputFormatter Tests...\n";
 
-// 1. Severity resolution
-$errorDiff = new SchemaDiff('users', 'col: email', 'Present', 'Missing', 'MISSING_COLUMN');
-test('MISSING_COLUMN has error severity', $errorDiff->severity === 'error', $passed, $failed);
+// 1. Severity & Category resolution
+$missingDiff = new SchemaDiff('users', 'col: email', 'Present', 'Missing', 'MISSING_COLUMN');
+test('MISSING_COLUMN has error severity and MISSING category', $missingDiff->severity === 'error' && $missingDiff->category === 'MISSING', $passed, $failed);
 
-$typeDiff = new SchemaDiff('users', 'col: status', 'string', 'integer', 'TYPE_MISMATCH');
-test('TYPE_MISMATCH has error severity', $typeDiff->severity === 'error', $passed, $failed);
+$mismatchDiff = new SchemaDiff('users', 'col: status', 'string', 'integer', 'TYPE_MISMATCH');
+test('TYPE_MISMATCH has error severity and MISMATCH category', $mismatchDiff->severity === 'error' && $mismatchDiff->category === 'MISMATCH', $passed, $failed);
 
-$warnDiff = new SchemaDiff('posts', '-', 'Missing', 'Present', 'UNTRACKED_TABLE');
-test('UNTRACKED_TABLE has warning severity', $warnDiff->severity === 'warning', $passed, $failed);
+$untrackedDiff = new SchemaDiff('posts', '-', 'Missing', 'Present', 'UNTRACKED_TABLE');
+test('UNTRACKED_TABLE has warning severity and UNTRACKED category', $untrackedDiff->severity === 'warning' && $untrackedDiff->category === 'UNTRACKED', $passed, $failed);
 
 $indexDiff = new SchemaDiff('users', 'index: idx_name', 'Present', 'Missing', 'MISSING_INDEX');
-test('MISSING_INDEX has warning severity', $indexDiff->severity === 'warning', $passed, $failed);
+test('MISSING_INDEX has warning severity and UNTRACKED category', $indexDiff->severity === 'warning' && $indexDiff->category === 'UNTRACKED', $passed, $failed);
 
 // 2. JSON Formatter
-$diffs = [$errorDiff, $warnDiff];
+$diffs = [$missingDiff, $mismatchDiff, $untrackedDiff];
 $jsonOutput = $formatter->formatJson($diffs);
 $decoded = json_decode($jsonOutput, true);
 
 test('JSON output parses correctly', is_array($decoded), $passed, $failed);
-test('JSON contains total_issues count', ($decoded['total_issues'] ?? null) === 2, $passed, $failed);
-test('JSON contains errors_count', ($decoded['errors_count'] ?? null) === 1, $passed, $failed);
+test('JSON contains total_issues count', ($decoded['total_issues'] ?? null) === 3, $passed, $failed);
+test('JSON contains errors_count', ($decoded['errors_count'] ?? null) === 2, $passed, $failed);
 test('JSON contains warnings_count', ($decoded['warnings_count'] ?? null) === 1, $passed, $failed);
-test('JSON contains issues array with severity', isset($decoded['issues'][0]['severity']) && $decoded['issues'][0]['severity'] === 'error', $passed, $failed);
+test('JSON contains category in issue details', isset($decoded['issues'][0]['category']) && $decoded['issues'][0]['category'] === 'MISSING', $passed, $failed);
 
 // 3. GitHub Actions Annotations Formatter
 $githubOutput = $formatter->formatGithub($diffs);
@@ -52,20 +52,23 @@ test('GitHub output includes ::error', str_contains($githubOutput, '::error titl
 test('GitHub output includes ::warning', str_contains($githubOutput, '::warning title=Schema Drift [UNTRACKED_TABLE]::Table \'posts\' - -> Expected: Missing, Actual: Present'), $passed, $failed);
 
 $githubEmpty = $formatter->formatGithub([]);
-test('GitHub output for empty diffs shows notice', str_contains($githubEmpty, '::notice title=Schema Drift::Schema is in perfect sync with migrations.'), $passed, $failed);
+test('GitHub output for empty diffs shows notice without emojis', str_contains($githubEmpty, '::notice title=Schema Drift::Schema is in perfect sync with migrations.') && !str_contains($githubEmpty, '✅'), $passed, $failed);
 
-// 4. Markdown Table Formatter
+// 4. Markdown Table Formatter (No emojis)
 $mdOutput = $formatter->formatMarkdown($diffs);
-test('Markdown output contains Markdown table header', str_contains($mdOutput, '| Severity | Table | Attribute | Expected (Migrations) | Actual (Database) | Issue Type |'), $passed, $failed);
-test('Markdown output contains Error badge', str_contains($mdOutput, '🔴 Error') && str_contains($mdOutput, '`users`'), $passed, $failed);
-test('Markdown output contains Warning badge', str_contains($mdOutput, '🟡 Warning') && str_contains($mdOutput, '`posts`'), $passed, $failed);
+test('Markdown output contains Markdown table header', str_contains($mdOutput, '| Status | Table | Attribute | Expected (Migrations) | Actual (Database) | Issue Type |'), $passed, $failed);
+test('Markdown output contains [MISSING]', str_contains($mdOutput, '`[MISSING]`') && str_contains($mdOutput, '`users`'), $passed, $failed);
+test('Markdown output contains [MISMATCH]', str_contains($mdOutput, '`[MISMATCH]`'), $passed, $failed);
+test('Markdown output contains [UNTRACKED]', str_contains($mdOutput, '`[UNTRACKED]`') && str_contains($mdOutput, '`posts`'), $passed, $failed);
 
 $mdEmpty = $formatter->formatMarkdown([]);
-test('Markdown output for in-sync schemas shows success header', str_contains($mdEmpty, '✅ Schema Drift Detection') && str_contains($mdEmpty, 'No schema drift detected'), $passed, $failed);
+test('Markdown output for in-sync schemas shows clean header without emojis', str_contains($mdEmpty, '### Schema Drift Detection') && str_contains($mdEmpty, 'No schema drift detected') && !str_contains($mdEmpty, '✅'), $passed, $failed);
 
-// 5. Table Rows Formatter
+// 5. Table Rows Formatter (3-Tier Colors)
 $tableRows = $formatter->formatTableRows($diffs);
-test('Table rows include severity formatting', count($tableRows) === 2 && str_contains($tableRows[0]['severity'], 'ERROR') && str_contains($tableRows[1]['severity'], 'WARN'), $passed, $failed);
+test('Table rows include red MISSING tag', str_contains($tableRows[0]['status'], '<fg=red>MISSING</>') && str_contains($tableRows[0]['table'], '<fg=red>users</>'), $passed, $failed);
+test('Table rows include yellow MISMATCH tag', str_contains($tableRows[1]['status'], '<fg=yellow>MISMATCH</>') && str_contains($tableRows[1]['table'], '<fg=yellow>users</>'), $passed, $failed);
+test('Table rows include cyan UNTRACKED tag', str_contains($tableRows[2]['status'], '<fg=cyan>UNTRACKED</>') && str_contains($tableRows[2]['table'], '<fg=cyan>posts</>'), $passed, $failed);
 
 echo "\nResults: {$passed} passed, {$failed} failed.\n";
 if ($failed > 0) {

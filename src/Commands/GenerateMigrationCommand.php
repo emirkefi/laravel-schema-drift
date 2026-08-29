@@ -34,44 +34,44 @@ class GenerateMigrationCommand extends Command
 
         if ($shadowConnection !== null) {
             if ($shadowConnection === $targetConnection) {
-                $this->error("⚠️  Safety Error: Target connection [{$targetConnection}] and shadow connection [{$shadowConnection}] cannot be the same.");
+                $this->error("Safety Error: Target connection [{$targetConnection}] and shadow connection [{$shadowConnection}] cannot be the same.");
                 return self::FAILURE;
             }
 
             if (config("database.connections.{$shadowConnection}") === null) {
-                $this->error("⚠️  Configuration Error: Database connection [{$shadowConnection}] is not configured in config/database.php.");
+                $this->error("Configuration Error: Database connection [{$shadowConnection}] is not configured in config/database.php.");
                 $this->line("   <fg=yellow>Please add [{$shadowConnection}] to your config/database.php connections or omit --shadow-connection to use the default in-memory SQLite shadow database.</>");
                 return self::FAILURE;
             }
         }
 
-        $this->info(" Inspecting live schema on [{$targetConnection}]...");
+        $this->info("Inspecting live schema on [{$targetConnection}]...");
         $liveExtractor = new SchemaExtractor($targetConnection);
         $liveSchema = $liveExtractor->extract();
 
         if ($shadowConnection) {
-            $this->info(" Running migrations on shadow database [{$shadowConnection}]...");
+            $this->info("Running migrations on shadow database [{$shadowConnection}]...");
         } else {
-            $this->info(" Simulating migrations in temporary in-memory SQLite shadow database...");
+            $this->info("Simulating migrations in temporary in-memory SQLite shadow database...");
         }
 
         $expectedSchema = $this->extractExpectedSchema($migrationPath, $shadowConnection);
 
-        $this->info(" Comparing schema structures...");
+        $this->info("Comparing schema structures...");
         $diffs = $diffEngine->compare($liveSchema, $expectedSchema);
 
         if (empty($diffs)) {
             $this->newLine();
-            $this->info('✅ Schema is in perfect sync! No migration needed.');
+            $this->info('Schema is in perfect sync! No migration needed.');
             return self::SUCCESS;
         }
 
-        $this->info(' Generating fix migration...');
+        $this->info('Generating fix migration...');
         $content = $migrationGenerator->generate($diffs, $liveSchema, $expectedSchema, $destructive);
         $filePath = $migrationGenerator->write($content, $outputPath, $migrationName);
 
         $this->newLine();
-        $this->info("✨ Migration generated successfully:");
+        $this->info("Migration generated successfully:");
         $this->line("   <fg=cyan>{$filePath}</>");
 
         return self::SUCCESS;

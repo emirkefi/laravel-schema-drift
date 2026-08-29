@@ -40,19 +40,19 @@ class DriftCheckCommand extends Command
 
         if ($shadowConnection !== null) {
             if ($shadowConnection === $targetConnection) {
-                $this->error("⚠️  Safety Error: Target connection [{$targetConnection}] and shadow connection [{$shadowConnection}] cannot be the same.");
+                $this->error("Safety Error: Target connection [{$targetConnection}] and shadow connection [{$shadowConnection}] cannot be the same.");
                 return self::FAILURE;
             }
 
             if (config("database.connections.{$shadowConnection}") === null) {
-                $this->error("⚠️  Configuration Error: Database connection [{$shadowConnection}] is not configured in config/database.php.");
+                $this->error("Configuration Error: Database connection [{$shadowConnection}] is not configured in config/database.php.");
                 $this->line("   <fg=yellow>Please add [{$shadowConnection}] to your config/database.php connections or omit --shadow-connection to use the default in-memory SQLite shadow database.</>");
                 return self::FAILURE;
             }
         }
 
         if ($isTableFormat) {
-            $this->info(" Inspecting live schema on [{$targetConnection}]...");
+            $this->info("Inspecting live schema on [{$targetConnection}]...");
         }
         
         $liveExtractor = new SchemaExtractor($targetConnection);
@@ -60,16 +60,16 @@ class DriftCheckCommand extends Command
 
         if ($isTableFormat) {
             if ($shadowConnection) {
-                $this->info(" Running migrations on custom shadow database [{$shadowConnection}]...");
+                $this->info("Running migrations on custom shadow database [{$shadowConnection}]...");
             } else {
-                $this->info(" Simulating migrations in temporary in-memory SQLite shadow database...");
+                $this->info("Simulating migrations in temporary in-memory SQLite shadow database...");
             }
         }
 
         $expectedSchema = $this->extractExpectedSchema($migrationPath, $shadowConnection);
 
         if ($isTableFormat) {
-            $this->info(" Comparing schema structures...");
+            $this->info("Comparing schema structures...");
         }
 
         $diffs = $diffEngine->compare($liveSchema, $expectedSchema);
@@ -104,33 +104,41 @@ class DriftCheckCommand extends Command
     ): void {
         if (empty($diffs)) {
             $this->newLine();
-            $this->info('✅ Schema is in perfect sync with your migrations! No drift detected.');
+            $this->info('Schema is in perfect sync with your migrations! No drift detected.');
             return;
         }
 
         $this->newLine();
-        $this->error('⚠️  Schema drift detected:');
+        $this->error('Schema drift detected:');
 
         $formatter = new OutputFormatter();
         $rows = $formatter->formatTableRows($diffs);
 
         $this->table(
-            ['Severity', 'Table', 'Attribute', 'Expected (Migrations)', 'Actual (Database)', 'Issue Type'],
+            ['Status', 'Table', 'Attribute', 'Expected (Migrations)', 'Actual (Database)', 'Issue Type'],
             $rows
         );
 
-        if ($this->option('fix')) {
+        $shouldGenerate = (bool) $this->option('fix');
+
+        // Interactive Prompt if --fix was not passed and running interactively
+        if (!$shouldGenerate && $this->input->isInteractive()) {
             $this->newLine();
-            $this->info('🛠️  Generating fix migration...');
+            $shouldGenerate = $this->confirm('Do you want to generate a migration for these changes?', false);
+        }
+
+        if ($shouldGenerate) {
+            $this->newLine();
+            $this->info('Generating fix migration...');
             $destructive = (bool) $this->option('destructive');
             $content = $migrationGenerator->generate($diffs, $liveSchema, $expectedSchema, $destructive);
             $filePath = $migrationGenerator->write($content, $migrationPath);
 
-            $this->info("✨ Fix migration generated successfully:");
+            $this->info("Fix migration generated successfully:");
             $this->line("   <fg=cyan>{$filePath}</>");
         } else {
             $this->newLine();
-            $this->comment('💡 Tip: Run with --fix or use `php artisan schema:drift:generate-migration` to automatically generate a migration fixing this drift.');
+            $this->comment('Tip: Run with --fix or use `php artisan schema:drift:generate-migration` to automatically generate a migration fixing this drift.');
         }
     }
 
@@ -140,7 +148,6 @@ class DriftCheckCommand extends Command
         $shadowConnection = $isCustomShadow ? $customShadowConnection : 'schema_drift_shadow';
 
         if (!$isCustomShadow) {
-            // Setup temporary in-memory SQLite shadow connection
             Config::set("database.connections.{$shadowConnection}", [
                 'driver' => 'sqlite',
                 'database' => ':memory:',

@@ -57,26 +57,30 @@ class OutputFormatter
     public function formatMarkdown(array $diffs): string
     {
         if (empty($diffs)) {
-            return "### ✅ Schema Drift Detection\n\nNo schema drift detected. Database is in perfect sync with your migrations!";
+            return "### Schema Drift Detection\n\nNo schema drift detected. Database is in perfect sync with your migrations!";
         }
 
         $lines = [
-            "### ⚠️ Schema Drift Detected",
+            "### Schema Drift Detected",
             "",
-            "| Severity | Table | Attribute | Expected (Migrations) | Actual (Database) | Issue Type |",
+            "| Status | Table | Attribute | Expected (Migrations) | Actual (Database) | Issue Type |",
             "| :--- | :--- | :--- | :--- | :--- | :--- |",
         ];
 
         foreach ($diffs as $diff) {
-            $badge = $diff->severity === 'error' ? '🔴 Error' : '🟡 Warning';
-            $lines[] = "| {$badge} | `{$diff->table}` | `{$diff->attribute}` | `{$diff->expected}` | `{$diff->actual}` | `{$diff->issueType}` |";
+            $status = match ($diff->category) {
+                'MISSING' => '[MISSING]',
+                'MISMATCH' => '[MISMATCH]',
+                default => '[UNTRACKED]',
+            };
+            $lines[] = "| `{$status}` | `{$diff->table}` | `{$diff->attribute}` | `{$diff->expected}` | `{$diff->actual}` | `{$diff->issueType}` |";
         }
 
         return implode("\n", $lines);
     }
 
     /**
-     * Format diff rows for terminal table output.
+     * Format diff rows for terminal table output with color coding.
      *
      * @param array<SchemaDiff> $diffs
      * @return array<array>
@@ -84,10 +88,21 @@ class OutputFormatter
     public function formatTableRows(array $diffs): array
     {
         return array_map(function (SchemaDiff $diff) {
-            $severityTag = $diff->severity === 'error' ? '<fg=red>ERROR</>' : '<fg=yellow>WARN</>';
+            $statusBadge = match ($diff->category) {
+                'MISSING' => '<fg=red>MISSING</>',
+                'MISMATCH' => '<fg=yellow>MISMATCH</>',
+                default => '<fg=cyan>UNTRACKED</>',
+            };
+
+            $color = match ($diff->category) {
+                'MISSING' => 'red',
+                'MISMATCH' => 'yellow',
+                default => 'cyan',
+            };
+
             return [
-                'severity' => $severityTag,
-                'table' => $diff->table,
+                'status' => $statusBadge,
+                'table' => "<fg={$color}>{$diff->table}</>",
                 'attribute' => $diff->attribute,
                 'expected' => $diff->expected,
                 'actual' => $diff->actual,
