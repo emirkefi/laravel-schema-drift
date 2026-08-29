@@ -6,7 +6,7 @@
 
 A powerful, zero-config Artisan command to detect schema drift between your live database and your Laravel migration files. 
 
-Ever wonder if someone manually tweaked a database column directly in production without writing a migration? Or if a legacy table is sitting in your database completely untracked? This package catches those discrepancies instantly and can even generate the fix migrations for you automatically.
+Ever wonder if someone manually tweaked a database column directly in production without writing a migration? Or if a legacy table is sitting in your database completely untracked? This package catches those discrepancies instantly, integrates seamlessly into your CI/CD pipelines, and can even generate the fix migrations for you automatically.
 
 ## How It Works
 
@@ -15,17 +15,20 @@ Behind the scenes, the package uses a clever "shadow database" approach:
 2. It spins up a temporary in-memory SQLite database (or connects to your configured shadow database) and runs all your migration files.
 3. It compares the two schemas and outputs a terminal table highlighting missing tables, untracked columns, nullability mismatches, type drift, default value drift, and index discrepancies.
 4. **Instant Fix**: Generate a Laravel migration with a single flag (`--fix`) to bring your migrations in sync.
+5. **CI/CD Ready**: Output machine-readable JSON, Markdown, or native GitHub Actions workflow annotations to fail PRs with clickable inline diffs.
 
 ## Features
 
-- **Zero-Config Drift Detection**: Compare live databases directly against migration files.
-- **Automatic Migration Generator (`--fix`)**: Automatically generate a timestamped Laravel migration to synchronize detected drift without writing boilerplate code manually.
-- **Cross-Database Type Normalization Engine**: SQLite shadow databases use loose type affinity. Our built-in `TypeNormalizer` accurately maps dialect-specific column types across **MySQL**, **PostgreSQL**, **SQLite**, and **SQL Server** to canonical types (`integer`, `bigint`, `boolean`, `decimal`, `string`, `datetime`, `json`, `binary`), eliminating false-positive type mismatches (e.g. MySQL `TINYINT(1)` vs SQLite boolean/integer).
-- **Smart Default Value Normalization**: Strips dialect-specific default wrappers (such as Postgres casts `'val'::character varying`, SQL Server `((0))`, MySQL bit literals `b'1'`, and boolean string variants) to ensure accurate default comparisons.
-- **Custom Shadow Connections**: Have migrations containing raw SQL statements, full-text indexes, GIS/spatial types, or stored procedures that fail on SQLite? Pass a real shadow connection (e.g. `--shadow-connection=mysql_testing`) to run migrations against a dedicated test database.
-- **Built-in Safety Guardrails**: Prevents accidentally running shadow migrations against your target live/production connection.
-- **Fine-Grained Strictness Checks**: Enable or disable checks for indexes, foreign keys, column types, and defaults.
-- **Ignore Patterns**: Exclude vendor, framework, or legacy tables with wildcard support (e.g. `pma__*`).
+- 🚀 **Zero-Config Drift Detection**: Compare live databases directly against migration files.
+- 🛠️ **Automatic Migration Generator (`--fix`)**: Automatically generate a timestamped Laravel migration to synchronize detected drift without writing boilerplate code manually.
+- 🤖 **CI/CD & Pipeline Formats**: Output structured `json`, Markdown tables (`markdown`), or GitHub Actions workflow annotations (`github`).
+- 🚥 **Severity & Failure Controls**: Categorizes drift by severity (`error` vs `warning`) with configurable thresholds (`--min-severity=error|warning`).
+- 🔄 **Cross-Database Type Normalization Engine**: SQLite shadow databases use loose type affinity. Our built-in `TypeNormalizer` accurately maps dialect-specific column types across **MySQL**, **PostgreSQL**, **SQLite**, and **SQL Server** to canonical types (`integer`, `bigint`, `boolean`, `decimal`, `string`, `datetime`, `json`, `binary`), eliminating false-positive type mismatches (e.g. MySQL `TINYINT(1)` vs SQLite boolean/integer).
+- 🏷️ **Smart Default Value Normalization**: Strips dialect-specific default wrappers (such as Postgres casts `'val'::character varying`, SQL Server `((0))`, MySQL bit literals `b'1'`, and boolean string variants) to ensure accurate default comparisons.
+- 🗄️ **Custom Shadow Connections**: Have migrations containing raw SQL statements, full-text indexes, GIS/spatial types, or stored procedures that fail on SQLite? Pass a real shadow connection (e.g. `--shadow-connection=mysql_testing`) to run migrations against a dedicated test database.
+- 🛡️ **Built-in Safety Guardrails**: Prevents accidentally running shadow migrations against your target live/production connection.
+- 🎯 **Fine-Grained Strictness Checks**: Enable or disable checks for indexes, foreign keys, column types, and defaults.
+- 🔍 **Ignore Patterns**: Exclude vendor, framework, or legacy tables with wildcard support (e.g. `pma__*`).
 
 ## Requirements
 
@@ -69,6 +72,39 @@ To include destructive drop operations (e.g. dropping columns or tables in migra
 php artisan schema:drift --fix --destructive
 ```
 
+### CI/CD & Pipeline Formats
+Output machine-readable JSON:
+
+```bash
+php artisan schema:drift --format=json
+```
+
+Output GitHub Actions workflow annotations with inline errors/warnings:
+
+```bash
+php artisan schema:drift --format=github
+```
+
+Output Markdown summary table:
+
+```bash
+php artisan schema:drift --format=markdown >> $GITHUB_STEP_SUMMARY
+```
+
+Fail CI only on critical errors (e.g. missing tables/columns, type mismatches):
+
+```bash
+php artisan schema:drift --min-severity=error
+```
+
+### GitHub Actions Workflow Example
+Add this job step to your CI pipeline:
+
+```yaml
+- name: Check Schema Drift
+  run: php artisan schema:drift --format=github --min-severity=warning
+```
+
 ### Standalone Migration Generator Command
 You can also invoke the migration generator directly:
 
@@ -92,7 +128,7 @@ php artisan schema:drift --connection=mysql --shadow-connection=mysql_testing --
 
 ## Configuration
 
-In `config/schema-drift.php`, you can customize shadow connections, strictness checks, and ignored tables:
+In `config/schema-drift.php`, you can customize formats, severity thresholds, shadow connections, strictness checks, and ignored tables:
 
 ```php
 return [
@@ -102,6 +138,12 @@ return [
     */
     'shadow_connection' => env('SCHEMA_DRIFT_SHADOW_CONNECTION', null),
     'fresh_shadow' => env('SCHEMA_DRIFT_FRESH_SHADOW', true),
+
+    /*
+    | CI/CD & Output Settings
+    */
+    'default_format' => env('SCHEMA_DRIFT_FORMAT', 'table'),
+    'min_severity' => env('SCHEMA_DRIFT_MIN_SEVERITY', 'warning'),
 
     /*
     | Ignore system or vendor tables from drift analysis

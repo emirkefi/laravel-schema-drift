@@ -22,6 +22,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | CI/CD & Output Settings
+    |--------------------------------------------------------------------------
+    |
+    | Default output format: 'table', 'json', 'github', or 'markdown'.
+    | Minimum severity to cause command failure: 'warning' or 'error'.
+    |
+    */
+    'default_format' => env('SCHEMA_DRIFT_FORMAT', 'table'),
+    'min_severity' => env('SCHEMA_DRIFT_MIN_SEVERITY', 'warning'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Ignored Tables
     |--------------------------------------------------------------------------
     |

@@ -31,6 +31,9 @@ test('DriftCheckCommand has --path', $driftDef->hasOption('path'), $passed, $fai
 test('DriftCheckCommand has --fresh-shadow', $driftDef->hasOption('fresh-shadow'), $passed, $failed);
 test('DriftCheckCommand has --fix', $driftDef->hasOption('fix'), $passed, $failed);
 test('DriftCheckCommand has --destructive', $driftDef->hasOption('destructive'), $passed, $failed);
+test('DriftCheckCommand has --format', $driftDef->hasOption('format'), $passed, $failed);
+test('DriftCheckCommand has --min-severity', $driftDef->hasOption('min-severity'), $passed, $failed);
+test('DriftCheckCommand has --fail-on-drift', $driftDef->hasOption('fail-on-drift'), $passed, $failed);
 
 // 2. GenerateMigrationCommand
 $genCommand = new GenerateMigrationCommand();

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use EmirKefi\SchemaDrift\Extractors\SchemaExtractor;
 use EmirKefi\SchemaDrift\Services\DiffEngine;
 use EmirKefi\SchemaDrift\Services\MigrationGenerator;
+use EmirKefi\SchemaDrift\Services\OutputFormatter;
 
 class DriftCheckCommand extends Command
 {
@@ -17,51 +18,96 @@ class DriftCheckCommand extends Command
                             {--shadow-connection= : Custom shadow database connection for running migrations}
                             {--path=database/migrations : Path to migration files}
                             {--fresh-shadow : Run migrate:fresh on the shadow connection before extracting schema}
+                            {--format=table : Output format: table, json, github, markdown}
+                            {--min-severity=warning : Minimum severity level to trigger failure (warning, error)}
+                            {--fail-on-drift : Return a non-zero exit code if schema drift is detected}
                             {--fix : Automatically generate a migration to fix detected schema drift}
                             {--destructive : Include destructive operations (e.g. drop missing columns/tables) in the fix migration}';
 
     protected $description = 'Detect schema drift between live database tables and migration files';
 
-    public function handle(DiffEngine $diffEngine, MigrationGenerator $migrationGenerator): int
-    {
+    public function handle(
+        DiffEngine $diffEngine,
+        MigrationGenerator $migrationGenerator,
+        OutputFormatter $outputFormatter
+    ): int {
         $targetConnection = $this->option('connection') ?? config('database.default');
         $shadowConnection = $this->option('shadow-connection') ?? config('schema-drift.shadow_connection');
         $migrationPath = $this->option('path');
+        $format = strtolower($this->option('format') ?? config('schema-drift.default_format', 'table'));
+        $minSeverity = strtolower($this->option('min-severity') ?? config('schema-drift.min_severity', 'warning'));
+        $isTableFormat = ($format === 'table');
 
         if ($shadowConnection !== null && $shadowConnection === $targetConnection) {
             $this->error("⚠️  Safety Error: Target connection [{$targetConnection}] and shadow connection [{$shadowConnection}] cannot be the same.");
             return self::FAILURE;
         }
 
-        $this->info(" Inspecting live schema on [{$targetConnection}]...");
+        if ($isTableFormat) {
+            $this->info(" Inspecting live schema on [{$targetConnection}]...");
+        }
         
         $liveExtractor = new SchemaExtractor($targetConnection);
         $liveSchema = $liveExtractor->extract();
 
-        if ($shadowConnection) {
-            $this->info(" Running migrations on custom shadow database [{$shadowConnection}]...");
-        } else {
-            $this->info(" Simulating migrations in temporary in-memory SQLite shadow database...");
+        if ($isTableFormat) {
+            if ($shadowConnection) {
+                $this->info(" Running migrations on custom shadow database [{$shadowConnection}]...");
+            } else {
+                $this->info(" Simulating migrations in temporary in-memory SQLite shadow database...");
+            }
         }
 
         $expectedSchema = $this->extractExpectedSchema($migrationPath, $shadowConnection);
 
-        $this->info(" Comparing schema structures...");
+        if ($isTableFormat) {
+            $this->info(" Comparing schema structures...");
+        }
+
         $diffs = $diffEngine->compare($liveSchema, $expectedSchema);
 
+        // Render Outputs based on requested format
+        match ($format) {
+            'json' => $this->line($outputFormatter->formatJson($diffs)),
+            'github' => $this->line($outputFormatter->formatGithub($diffs)),
+            'markdown' => $this->line($outputFormatter->formatMarkdown($diffs)),
+            default => $this->renderTableOutput($diffs, $migrationGenerator, $liveSchema, $expectedSchema, $migrationPath),
+        };
+
+        // Determine Exit Code based on severity threshold
+        if (empty($diffs)) {
+            return self::SUCCESS;
+        }
+
+        $hasFailingIssues = match ($minSeverity) {
+            'error' => count(array_filter($diffs, fn($d) => $d->severity === 'error')) > 0,
+            default => true,
+        };
+
+        return $hasFailingIssues ? self::FAILURE : self::SUCCESS;
+    }
+
+    protected function renderTableOutput(
+        array $diffs,
+        MigrationGenerator $migrationGenerator,
+        array $liveSchema,
+        array $expectedSchema,
+        string $migrationPath
+    ): void {
         if (empty($diffs)) {
             $this->newLine();
             $this->info('✅ Schema is in perfect sync with your migrations! No drift detected.');
-            return self::SUCCESS;
+            return;
         }
 
         $this->newLine();
         $this->error('⚠️  Schema drift detected:');
-        
-        $rows = array_map(fn($diff) => $diff->toArray(), $diffs);
+
+        $formatter = new OutputFormatter();
+        $rows = $formatter->formatTableRows($diffs);
 
         $this->table(
-            ['Table', 'Attribute', 'Expected (Migrations)', 'Actual (Database)', 'Issue Type'],
+            ['Severity', 'Table', 'Attribute', 'Expected (Migrations)', 'Actual (Database)', 'Issue Type'],
             $rows
         );
 
@@ -78,8 +124,6 @@ class DriftCheckCommand extends Command
             $this->newLine();
             $this->comment('💡 Tip: Run with --fix or use `php artisan schema:drift:generate-migration` to automatically generate a migration fixing this drift.');
         }
-
-        return self::FAILURE;
     }
 
     protected function extractExpectedSchema(string $migrationPath, ?string $customShadowConnection = null): array
@@ -88,7 +132,6 @@ class DriftCheckCommand extends Command
         $shadowConnection = $isCustomShadow ? $customShadowConnection : 'schema_drift_shadow';
 
         if (!$isCustomShadow) {
-            // Setup temporary in-memory SQLite shadow connection
             Config::set("database.connections.{$shadowConnection}", [
                 'driver' => 'sqlite',
                 'database' => ':memory:',
