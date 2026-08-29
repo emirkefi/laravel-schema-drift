@@ -39,7 +39,7 @@ class MigrationGenerator
 
             $colLines = [];
             foreach ($tableData['columns'] as $colName => $col) {
-                $colLines[] = '            ' . $this->renderColumnDefinition($colName, $col);
+                $colLines[] = '            ' . $this->renderColumnDefinition($colName, $col, false);
             }
 
             // Indexes
@@ -86,7 +86,7 @@ PHP;
                 if ($diff->issueType === 'UNTRACKED_COLUMN') {
                     $colData = $liveSchema[$table]['columns'][$colName] ?? null;
                     if ($colData) {
-                        $colLines[] = '            ' . $this->renderColumnDefinition($colName, $colData);
+                        $colLines[] = '            ' . $this->renderColumnDefinition($colName, $colData, false);
                     }
                 } elseif (in_array($diff->issueType, ['TYPE_MISMATCH', 'NULLABILITY_MISMATCH', 'DEFAULT_MISMATCH'], true)) {
                     if (!isset($handledModifiedCols[$colName])) {
@@ -180,8 +180,8 @@ PHP;
         $nullable = (bool) ($column['nullable'] ?? false);
         $default = $column['default'] ?? null;
 
-        // Auto-increment primary id
-        if ($name === 'id' && ($canonicalType === 'bigint' || $canonicalType === 'integer')) {
+        // Auto-increment primary id for new table creations or new columns only
+        if (!$isChange && $name === 'id' && ($canonicalType === 'bigint' || $canonicalType === 'integer')) {
             if ($canonicalType === 'bigint') {
                 return "\$table->id();";
             }

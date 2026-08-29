@@ -38,9 +38,17 @@ class DriftCheckCommand extends Command
         $minSeverity = strtolower($this->option('min-severity') ?? config('schema-drift.min_severity', 'warning'));
         $isTableFormat = ($format === 'table');
 
-        if ($shadowConnection !== null && $shadowConnection === $targetConnection) {
-            $this->error("⚠️  Safety Error: Target connection [{$targetConnection}] and shadow connection [{$shadowConnection}] cannot be the same.");
-            return self::FAILURE;
+        if ($shadowConnection !== null) {
+            if ($shadowConnection === $targetConnection) {
+                $this->error("⚠️  Safety Error: Target connection [{$targetConnection}] and shadow connection [{$shadowConnection}] cannot be the same.");
+                return self::FAILURE;
+            }
+
+            if (config("database.connections.{$shadowConnection}") === null) {
+                $this->error("⚠️  Configuration Error: Database connection [{$shadowConnection}] is not configured in config/database.php.");
+                $this->line("   <fg=yellow>Please add [{$shadowConnection}] to your config/database.php connections or omit --shadow-connection to use the default in-memory SQLite shadow database.</>");
+                return self::FAILURE;
+            }
         }
 
         if ($isTableFormat) {
@@ -132,6 +140,7 @@ class DriftCheckCommand extends Command
         $shadowConnection = $isCustomShadow ? $customShadowConnection : 'schema_drift_shadow';
 
         if (!$isCustomShadow) {
+            // Setup temporary in-memory SQLite shadow connection
             Config::set("database.connections.{$shadowConnection}", [
                 'driver' => 'sqlite',
                 'database' => ':memory:',

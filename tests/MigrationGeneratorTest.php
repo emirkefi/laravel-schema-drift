@@ -37,7 +37,11 @@ test("Renders unsignedInteger with default 0", $rendered3 === "\$table->unsigned
 
 $col4 = ['type' => 'bigint', 'raw_type' => 'bigint(20) unsigned', 'nullable' => false, 'default' => null];
 $rendered4 = $generator->renderColumnDefinition('id', $col4);
-test("Renders primary bigIncrements id", $rendered4 === "\$table->id();", $passed, $failed);
+test("Renders primary bigIncrements id for new column", $rendered4 === "\$table->id();", $passed, $failed);
+
+$col4Change = ['type' => 'bigint', 'raw_type' => 'bigint(20) unsigned', 'nullable' => false, 'default' => null];
+$rendered4Change = $generator->renderColumnDefinition('id', $col4Change, true);
+test("Renders unsignedBigInteger change for existing id column", $rendered4Change === "\$table->unsignedBigInteger('id')->change();", $passed, $failed);
 
 $col5 = ['type' => 'string', 'raw_type' => 'varchar(100)', 'nullable' => false, 'default' => null];
 $rendered5 = $generator->renderColumnDefinition('phone', $col5, true);

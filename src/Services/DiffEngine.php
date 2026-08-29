@@ -65,8 +65,8 @@ class DiffEngine
                 $diffs[] = new SchemaDiff($table, "col: {$col} (nullability)", $expStr, $actStr, 'NULLABILITY_MISMATCH');
             }
 
-            // Check Column Type
-            if ($checkTypes && isset($expected['type'], $live['type']) && $expected['type'] !== $live['type']) {
+            // Check Column Type (with cross-database type compatibility)
+            if ($checkTypes && isset($expected['type'], $live['type']) && !$this->areTypesCompatible($expected['type'], $live['type'])) {
                 $diffs[] = new SchemaDiff($table, "col: {$col} (type)", (string) $expected['type'], (string) $live['type'], 'TYPE_MISMATCH');
             }
 
@@ -87,6 +87,26 @@ class DiffEngine
         }
 
         return $diffs;
+    }
+
+    /**
+     * Check if two canonical column types are compatible across dialects (e.g. SQLite integer affinity).
+     */
+    protected function areTypesCompatible(string $expectedType, string $liveType): bool
+    {
+        if ($expectedType === $liveType) {
+            return true;
+        }
+
+        // In SQLite shadow database, 64-bit bigint/id columns are reported as integer
+        if (
+            ($expectedType === 'integer' && $liveType === 'bigint') ||
+            ($expectedType === 'bigint' && $liveType === 'integer')
+        ) {
+            return true;
+        }
+
+        return false;
     }
 
     protected function compareIndexes(string $table, array $liveIndexes, array $expectedIndexes): array

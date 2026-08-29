@@ -32,9 +32,17 @@ class GenerateMigrationCommand extends Command
         $destructive = (bool) $this->option('destructive');
         $migrationName = (string) $this->option('name');
 
-        if ($shadowConnection !== null && $shadowConnection === $targetConnection) {
-            $this->error("⚠️  Safety Error: Target connection [{$targetConnection}] and shadow connection [{$shadowConnection}] cannot be the same.");
-            return self::FAILURE;
+        if ($shadowConnection !== null) {
+            if ($shadowConnection === $targetConnection) {
+                $this->error("⚠️  Safety Error: Target connection [{$targetConnection}] and shadow connection [{$shadowConnection}] cannot be the same.");
+                return self::FAILURE;
+            }
+
+            if (config("database.connections.{$shadowConnection}") === null) {
+                $this->error("⚠️  Configuration Error: Database connection [{$shadowConnection}] is not configured in config/database.php.");
+                $this->line("   <fg=yellow>Please add [{$shadowConnection}] to your config/database.php connections or omit --shadow-connection to use the default in-memory SQLite shadow database.</>");
+                return self::FAILURE;
+            }
         }
 
         $this->info(" Inspecting live schema on [{$targetConnection}]...");
