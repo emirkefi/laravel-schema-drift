@@ -8,6 +8,10 @@ A powerful, zero-config Artisan command to detect schema drift between your live
 
 Ever wonder if someone manually tweaked a database column directly in production without writing a migration? Or if a legacy table is sitting in your database completely untracked? This package catches those discrepancies instantly, integrates seamlessly into your CI/CD pipelines, and can even generate the fix migrations for you automatically.
 
+<p align="center">
+  <img src="art/preview.png" alt="Laravel Schema Drift Preview" width="100%">
+</p>
+
 ## How It Works
 
 Behind the scenes, the package uses a clever "shadow database" approach:
