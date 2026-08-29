@@ -39,7 +39,7 @@ class MigrationGenerator
 
             $colLines = [];
             foreach ($tableData['columns'] as $colName => $col) {
-                $colLines[] = '            ' . $this->renderColumnDefinition($colName, $col, false);
+                $colLines[] = '                ' . $this->renderColumnDefinition($colName, $col, false);
             }
 
             // Indexes
@@ -49,17 +49,19 @@ class MigrationGenerator
                 }
                 $colsFormatted = "['" . implode("', '", $index['columns']) . "']";
                 if ($index['unique'] ?? false) {
-                    $colLines[] = "            \$table->unique({$colsFormatted});";
+                    $colLines[] = "                \$table->unique({$colsFormatted});";
                 } else {
-                    $colLines[] = "            \$table->index({$colsFormatted});";
+                    $colLines[] = "                \$table->index({$colsFormatted});";
                 }
             }
 
             $body = implode("\n", $colLines);
             $upOperations[] = <<<PHP
-        Schema::create('{$table}', function (Blueprint \$table) {
+        if (!Schema::hasTable('{$table}')) {
+            Schema::create('{$table}', function (Blueprint \$table) {
 {$body}
-        });
+            });
+        }
 PHP;
             $downOperations[] = "        Schema::dropIfExists('{$table}');";
         }
@@ -86,7 +88,8 @@ PHP;
                 if ($diff->issueType === 'UNTRACKED_COLUMN') {
                     $colData = $liveSchema[$table]['columns'][$colName] ?? null;
                     if ($colData) {
-                        $colLines[] = '            ' . $this->renderColumnDefinition($colName, $colData, false);
+                        $colDef = $this->renderColumnDefinition($colName, $colData, false);
+                        $colLines[] = "            if (!Schema::hasColumn('{$table}', '{$colName}')) {\n                {$colDef}\n            }";
                     }
                 } elseif (in_array($diff->issueType, ['TYPE_MISMATCH', 'NULLABILITY_MISMATCH', 'DEFAULT_MISMATCH'], true)) {
                     if (!isset($handledModifiedCols[$colName])) {
@@ -98,7 +101,7 @@ PHP;
                     }
                 } elseif ($diff->issueType === 'MISSING_COLUMN') {
                     if ($destructive) {
-                        $colLines[] = "            \$table->dropColumn('{$colName}');";
+                        $colLines[] = "            if (Schema::hasColumn('{$table}', '{$colName}')) {\n                \$table->dropColumn('{$colName}');\n            }";
                     } else {
                         $colLines[] = "            // Note: Column '{$colName}' is missing in live DB. Re-run with --destructive to drop.";
                     }

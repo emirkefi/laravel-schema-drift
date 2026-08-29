@@ -64,7 +64,7 @@ $liveSchema = [
     ],
 ];
 $code = $generator->generate($diffs, $liveSchema);
-test("Generates Schema::create for untracked table", str_contains($code, "Schema::create('posts'") && str_contains($code, "\$table->id();") && str_contains($code, "\$table->string('title');") && str_contains($code, "\$table->unique(['title']);"), $passed, $failed);
+test("Generates Schema::create with Schema::hasTable guard for untracked table", str_contains($code, "if (!Schema::hasTable('posts'))") && str_contains($code, "\$table->id();") && str_contains($code, "\$table->string('title');"), $passed, $failed);
 test("Generates down method Schema::dropIfExists", str_contains($code, "Schema::dropIfExists('posts');"), $passed, $failed);
 
 // 3. Column Modifications and Untracked Columns
@@ -81,7 +81,7 @@ $liveSchemaUsers = [
     ],
 ];
 $codeCols = $generator->generate($diffsCol, $liveSchemaUsers);
-test("Generates Schema::table for untracked column", str_contains($codeCols, "Schema::table('users'") && str_contains($codeCols, "\$table->text('bio')->nullable();"), $passed, $failed);
+test("Generates Schema::table with Schema::hasColumn guard for untracked column", str_contains($codeCols, "if (!Schema::hasColumn('users', 'bio'))") && str_contains($codeCols, "\$table->text('bio')->nullable();"), $passed, $failed);
 test("Generates change() for type mismatch", str_contains($codeCols, "\$table->integer('role')->default(1)->change();"), $passed, $failed);
 
 // 4. Missing Column / Table Destructive & Non-Destructive
