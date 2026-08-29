@@ -1,8 +1,8 @@
 # Laravel Schema Drift Detector
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/emirkefi/laravel-schema-drift.svg?style=flat-square)](https://packagist.org/packages/emirkefi/laravel-schema-drift)
-[![Total Downloads](https://img.shields.io/packagist/dt/emirkefi/laravel-schema-drift.svg?style=flat-square)](https://packagist.org/packages/emirkefi/laravel-schema-drift)
-[![License](https://img.shields.io/packagist/l/emirkefi/laravel-schema-drift.svg?style=flat-square)](https://packagist.org/packages/emirkefi/laravel-schema-drift)
+![Packagist License](https://img.shields.io/packagist/l/emirkefi/laravel-schema-drift)
+![Packagist Downloads](https://img.shields.io/packagist/dt/emirkefi/laravel-schema-drift)
+![Packagist Version](https://img.shields.io/packagist/v/emirkefi/laravel-schema-drift)
 
 A powerful, zero-config Artisan command to detect schema drift between your live database and your Laravel migration files. 
 
