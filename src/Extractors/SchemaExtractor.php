@@ -21,19 +21,25 @@ class SchemaExtractor
     public function extract(): array
     {
         $schema = Schema::connection($this->connection);
-        $driver = DB::connection($this->connection)->getDriverName();
+        $conn = DB::connection($this->connection);
+        $driver = $conn->getDriverName();
+        $prefix = (string) $conn->getTablePrefix();
+        $prefixIndexes = (bool) ($conn->getConfig('prefix_indexes') ?? false);
         $ignorePatterns = config('schema-drift.ignore_tables', []);
         
         $tables = $schema->getTables();
         $snapshot = [];
 
         foreach ($tables as $table) {
-            $tableName = $table['name'] ?? $table;
+            $rawTableName = $table['name'] ?? $table;
             
-            // Check if the table matches any ignore pattern (exact or wildcard)
+            $hasPrefix = (!empty($prefix) && str_starts_with($rawTableName, $prefix));
+            $logicalTableName = $hasPrefix ? substr($rawTableName, strlen($prefix)) : $rawTableName;
+
+            // Check if either the physical or logical table name matches any ignore pattern (exact or wildcard)
             $shouldIgnore = false;
             foreach ($ignorePatterns as $pattern) {
-                if (Str::is($pattern, $tableName)) {
+                if (Str::is($pattern, $rawTableName) || Str::is($pattern, $logicalTableName)) {
                     $shouldIgnore = true;
                     break;
                 }
@@ -43,11 +49,28 @@ class SchemaExtractor
                 continue;
             }
 
-            $snapshot[$tableName] = [
-                'columns' => $this->normalizeColumns($schema->getColumns($tableName), $driver),
-                'indexes' => $this->normalizeIndexes($schema->getIndexes($tableName)),
-                'foreign_keys' => $this->normalizeForeignKeys($schema->getForeignKeys($tableName)),
-            ];
+            if (!$hasPrefix && !empty($prefix)) {
+                // Table doesn't carry connection prefix; clear prefix temporarily for introspecting this table
+                $conn->setTablePrefix('');
+                try {
+                    $columns = $schema->getColumns($rawTableName);
+                    $indexes = $schema->getIndexes($rawTableName);
+                    $foreignKeys = $schema->getForeignKeys($rawTableName);
+                } finally {
+                    $conn->setTablePrefix($prefix);
+                }
+                $snapshot[$logicalTableName] = [
+                    'columns' => $this->normalizeColumns($columns, $driver),
+                    'indexes' => $this->normalizeIndexes($indexes, '', false),
+                    'foreign_keys' => $this->normalizeForeignKeys($foreignKeys, ''),
+                ];
+            } else {
+                $snapshot[$logicalTableName] = [
+                    'columns' => $this->normalizeColumns($schema->getColumns($logicalTableName), $driver),
+                    'indexes' => $this->normalizeIndexes($schema->getIndexes($logicalTableName), $prefix, $prefixIndexes),
+                    'foreign_keys' => $this->normalizeForeignKeys($schema->getForeignKeys($logicalTableName), $prefix),
+                ];
+            }
         }
 
         return $snapshot;
@@ -62,11 +85,18 @@ class SchemaExtractor
         return $normalized;
     }
 
-    protected function normalizeIndexes(array $indexes): array
+    protected function normalizeIndexes(array $indexes, string $prefix = '', bool $prefixIndexes = false): array
     {
         $normalized = [];
         foreach ($indexes as $index) {
-            $normalized[$index['name']] = [
+            $name = $index['name'];
+
+            // Normalize index name if index prefixing was applied
+            if ($prefixIndexes && !empty($prefix) && str_starts_with($name, $prefix)) {
+                $name = substr($name, strlen($prefix));
+            }
+
+            $normalized[$name] = [
                 'columns' => $index['columns'] ?? [],
                 'unique' => (bool) ($index['unique'] ?? false),
                 'primary' => (bool) ($index['primary'] ?? false),
@@ -75,13 +105,26 @@ class SchemaExtractor
         return $normalized;
     }
 
-    protected function normalizeForeignKeys(array $foreignKeys): array
+    protected function normalizeForeignKeys(array $foreignKeys, string $prefix = ''): array
     {
         $normalized = [];
         foreach ($foreignKeys as $fk) {
-            $normalized[$fk['name']] = [
+            $name = $fk['name'] ?? '';
+            $foreignTable = $fk['foreign_table'] ?? '';
+
+            // Normalize foreign table name if physical prefix is attached
+            if (!empty($prefix) && str_starts_with($foreignTable, $prefix)) {
+                $foreignTable = substr($foreignTable, strlen($prefix));
+            }
+
+            // Normalize foreign key name if physical prefix is attached
+            if (!empty($prefix) && !empty($name) && str_starts_with($name, $prefix)) {
+                $name = substr($name, strlen($prefix));
+            }
+
+            $normalized[$name] = [
                 'columns' => $fk['columns'] ?? [],
-                'foreign_table' => $fk['foreign_table'] ?? '',
+                'foreign_table' => $foreignTable,
                 'foreign_columns' => $fk['foreign_columns'] ?? [],
             ];
         }

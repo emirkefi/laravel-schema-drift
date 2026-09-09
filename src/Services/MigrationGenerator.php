@@ -55,6 +55,14 @@ class MigrationGenerator
                 }
             }
 
+            // Foreign Keys (ensuring logical non-prefixed table names)
+            foreach ($tableData['foreign_keys'] ?? [] as $fk) {
+                $colsFormatted = "['" . implode("', '", $fk['columns']) . "']";
+                $foreignColsFormatted = "['" . implode("', '", $fk['foreign_columns']) . "']";
+                $foreignTable = $fk['foreign_table'];
+                $colLines[] = "                \$table->foreign({$colsFormatted})->references({$foreignColsFormatted})->on('{$foreignTable}');";
+            }
+
             $body = implode("\n", $colLines);
             $upOperations[] = <<<PHP
         if (!Schema::hasTable('{$table}')) {
@@ -108,6 +116,9 @@ PHP;
                 } elseif ($diff->issueType === 'MISSING_INDEX') {
                     $idxName = $colName;
                     $colLines[] = "            // Missing index: {$idxName}";
+                } elseif ($diff->issueType === 'MISSING_FOREIGN_KEY') {
+                    $fkName = $colName;
+                    $colLines[] = "            // Missing foreign key: {$fkName}";
                 }
             }
 
