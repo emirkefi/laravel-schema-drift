@@ -31,7 +31,7 @@ class SchemaExtractor
         $snapshot = [];
 
         foreach ($tables as $table) {
-            $rawTableName = $table['name'] ?? $table;
+            $rawTableName = is_array($table) ? ($table['name'] ?? '') : (is_object($table) ? ($table->name ?? '') : (string) $table);
             
             $hasPrefix = (!empty($prefix) && str_starts_with($rawTableName, $prefix));
             $logicalTableName = $hasPrefix ? substr($rawTableName, strlen($prefix)) : $rawTableName;
